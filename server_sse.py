@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.routing import Route, Mount
 from starlette.requests import Request
-from starlette.responses import Response, JSONResponse
+from starlette.responses import Response, JSONResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
@@ -13,12 +13,36 @@ import traceback
 import asyncio
 import json
 from typing import List, Dict
+import re
 
 # Create an MCP server
 mcp = FastMCP("Demo")
 
 # Store active SSE connections
 connections: List[asyncio.Queue] = []
+
+# Store resource handlers
+resource_handlers = {}
+
+def register_resource(pattern: str, handler):
+    """Register a resource handler with a pattern"""
+    resource_handlers[pattern] = handler
+
+async def get_resource(resource_path: str, params: dict):
+    """Get a resource by its path and parameters"""
+    # Find matching resource pattern
+    for pattern, handler in resource_handlers.items():
+        # Convert pattern to regex by escaping special characters and handling parameters
+        regex_pattern = "^" + re.escape(pattern).replace("\\{", "(?P<").replace("\\}", ">[^/]+)") + "$"
+        match = re.match(regex_pattern, resource_path)
+        if match:
+            # Extract named parameters from the match
+            named_params = match.groupdict()
+            # Merge with provided params
+            all_params = {**named_params, **params}
+            # Call the handler with parameters
+            return await handler(**all_params) if asyncio.iscoroutinefunction(handler) else handler(**all_params)
+    raise ValueError(f"No resource found for path: {resource_path}")
 
 async def stream_events(queue: asyncio.Queue):
     while True:
@@ -41,8 +65,8 @@ async def handle_sse(request: Request):
             connections.remove(queue)
             await queue.put(None)
     
-    return Response(
-        content=stream_events(queue),
+    return StreamingResponse(
+        stream_events(queue),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -80,8 +104,27 @@ async def handle_messages(request: Request):
                 }
             }
         else:
-            # Handle tool execution request
-            response = await mcp.process_request(data)
+            # Handle tool execution or resource request
+            if data.get("action") == "execute":
+                # Execute tool
+                tool_name = data.get("tool")
+                tool_params = data.get("data", {})
+                
+                # Get the tool function
+                if tool_name == "add":
+                    result = add(**tool_params)
+                else:
+                    raise ValueError(f"Unknown tool: {tool_name}")
+                
+                response = {"type": "response", "data": result}
+            elif data.get("action") == "get":
+                # Get resource
+                resource = data.get("resource")
+                resource_params = data.get("data", {})
+                result = await get_resource(resource, resource_params)
+                response = {"type": "response", "data": result}
+            else:
+                raise ValueError(f"Unknown action: {data.get('action')}")
         
         logging.info(f"Generated response: {response}")
         
@@ -103,10 +146,12 @@ def add(a: int, b: int) -> int:
     return a + b
 
 # Add a dynamic greeting resource
-@mcp.resource("greeting://{name}")
 def get_greeting(name: str) -> str:
     """Get a personalized greeting"""
     return f"Hello, {name}!"
+
+# Register the greeting resource
+register_resource("greeting://{name}", get_greeting)
 
 # Create Starlette application with CORS middleware
 middleware = [

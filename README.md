@@ -45,11 +45,9 @@ The server will be available at:
 Here's how to use the SSE client in Python:
 
 ```python
-import requests
-import json
-from sseclient import SSEClient
-import asyncio
 import aiohttp
+import asyncio
+import json
 import logging
 
 class MCPClient:
@@ -70,8 +68,12 @@ class MCPClient:
             async with aiohttp.ClientSession() as session:
                 async with session.post(self.messages_url, json=introspection_message) as response:
                     if response.status == 200:
-                        return await response.json()
+                        data = await response.json()
+                        return data.get("data", {})
                     else:
+                        error_text = await response.text()
+                        logging.error(f"Failed to get tools. Status code: {response.status}")
+                        logging.error(f"Error response: {error_text}")
                         return None
         except Exception as e:
             logging.error(f"Error listing tools: {e}")
@@ -88,7 +90,8 @@ class MCPClient:
         
         async with aiohttp.ClientSession() as session:
             async with session.post(self.messages_url, json=message) as response:
-                return await response.json()
+                result = await response.json()
+                return result.get("data")
 
     async def get_greeting(self, name: str):
         """Get a personalized greeting."""
@@ -101,7 +104,8 @@ class MCPClient:
         
         async with aiohttp.ClientSession() as session:
             async with session.post(self.messages_url, json=message) as response:
-                return await response.json()
+                result = await response.json()
+                return result.get("data")
 ```
 
 ### Using the Client
@@ -112,15 +116,16 @@ async def main():
     
     # List available tools
     tools = await client.list_tools()
-    print("Available tools:", tools)
+    print("\nAvailable Tools and Resources:")
+    print(json.dumps(tools, indent=2))
     
     # Add two numbers
     result = await client.add_numbers(5, 3)
-    print("5 + 3 =", result)
+    print("\n5 + 3 =", result)  # Output: 8
     
     # Get a greeting
     greeting = await client.get_greeting("Alice")
-    print(greeting)
+    print("\nGreeting:", greeting)  # Output: Hello, Alice!
 
 if __name__ == "__main__":
     asyncio.run(main())
@@ -152,7 +157,8 @@ async function addNumbers(a, b) {
             data: { a, b }
         })
     });
-    return await response.json();
+    const result = await response.json();
+    return result.data;  // Returns just the result number
 }
 
 // Get a greeting
@@ -169,7 +175,19 @@ async function getGreeting(name) {
             data: {}
         })
     });
-    return await response.json();
+    const result = await response.json();
+    return result.data;  // Returns just the greeting string
+}
+
+// Example usage:
+async function example() {
+    // Add numbers
+    const sum = await addNumbers(5, 3);
+    console.log('5 + 3 =', sum);  // Output: 8
+
+    // Get greeting
+    const greeting = await getGreeting('Alice');
+    console.log('Greeting:', greeting);  // Output: Hello, Alice!
 }
 ```
 
@@ -213,9 +231,7 @@ async function getGreeting(name) {
 ```json
 {
     "type": "response",
-    "data": {
-        // response data
-    }
+    "data": "result"  // The actual result value, not wrapped in another object
 }
 ```
 
@@ -230,4 +246,4 @@ The server returns error responses with status code 500 and an error message:
 
 ## Logging
 
-Server logs are written to both the console and `logs/server_sse.log`. The log level is set to DEBUG for detailed information 
+Server logs are written to both the console and `logs/server_sse.log`. The log level is set to DEBUG for detailed information. 
