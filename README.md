@@ -9,6 +9,7 @@ This project implements a Model Context Protocol (MCP) server with Server-Sent E
 - CORS middleware for cross-origin requests
 - Built-in tools:
   - `add(a: int, b: int)`: Adds two numbers
+  - `get_metrics(question: str)`: Returns metrics for a given question
   - `greeting://{name}`: Returns a personalized greeting
 
 ## Installation
@@ -93,6 +94,20 @@ class MCPClient:
                 result = await response.json()
                 return result.get("data")
 
+    async def get_metrics(self, question: str):
+        """Get metrics for a specific question."""
+        message = {
+            "type": "request",
+            "action": "execute",
+            "tool": "get_metrics",
+            "data": {"question": question}
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.messages_url, json=message) as response:
+                result = await response.json()
+                return result.get("data")
+
     async def get_greeting(self, name: str):
         """Get a personalized greeting."""
         message = {
@@ -122,6 +137,10 @@ async def main():
     # Add two numbers
     result = await client.add_numbers(5, 3)
     print("\n5 + 3 =", result)  # Output: 8
+    
+    # Get metrics
+    metrics = await client.get_metrics("How well does feature X perform?")
+    print("\nMetrics:", json.dumps(metrics, indent=2))
     
     # Get a greeting
     greeting = await client.get_greeting("Alice")
@@ -179,11 +198,33 @@ async function getGreeting(name) {
     return result.data;  // Returns just the greeting string
 }
 
-// Example usage:
+// Add after the JavaScript addNumbers function
+async function getMetrics(question) {
+    const response = await fetch('http://localhost:8000/mcp/messages', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            type: 'request',
+            action: 'execute',
+            tool: 'get_metrics',
+            data: { question }
+        })
+    });
+    const result = await response.json();
+    return result.data;  // Returns the metrics object
+}
+
+// Update the example usage:
 async function example() {
     // Add numbers
     const sum = await addNumbers(5, 3);
     console.log('5 + 3 =', sum);  // Output: 8
+
+    // Get metrics
+    const metrics = await getMetrics('How well does feature X perform?');
+    console.log('Metrics:', metrics);
 
     // Get greeting
     const greeting = await getGreeting('Alice');
@@ -202,6 +243,28 @@ async function example() {
   - `a`: integer
   - `b`: integer
 - Returns: integer (sum of a and b)
+
+#### Get Metrics Tool
+- Name: `get_metrics`
+- Description: Get metrics related to a specific question
+- Parameters:
+  - `question`: string
+- Returns: object with the following structure:
+  ```json
+  {
+    "metrics": {
+      "question": "string",
+      "total_responses": "number",
+      "average_score": "number",
+      "completion_rate": "string",
+      "time_spent": "string",
+      "difficulty_level": "string",
+      "success_rate": "string",
+      "feedback_count": "number"
+    },
+    "timestamp": "string"
+  }
+  ```
 
 ### Resources
 
@@ -246,4 +309,4 @@ The server returns error responses with status code 500 and an error message:
 
 ## Logging
 
-Server logs are written to both the console and `logs/server_sse.log`. The log level is set to DEBUG for detailed information. 
+Server logs are written to both the console and `logs/server_sse.log`. The log level is set to DEBUG for detailed information.

@@ -96,6 +96,14 @@ async def handle_messages(request: Request):
                                 "b": {"type": "integer"}
                             },
                             "returns": {"type": "integer"}
+                        },
+                        {
+                            "name": "get_metrics",
+                            "description": "Get metrics related to a specific question",
+                            "parameters": {
+                                "question": {"type": "string"}
+                            },
+                            "returns": {"type": "object"}
                         }
                     ],
                     "resources": [
@@ -113,6 +121,8 @@ async def handle_messages(request: Request):
                 # Get the tool function
                 if tool_name == "add":
                     result = add(**tool_params)
+                elif tool_name == "get_metrics":
+                    result = get_metrics(**tool_params)
                 else:
                     raise ValueError(f"Unknown tool: {tool_name}")
                 
@@ -144,6 +154,25 @@ async def handle_messages(request: Request):
 def add(a: int, b: int) -> int:
     """Add two numbers"""
     return a + b
+
+@mcp.tool()
+def get_metrics(question: str) -> dict:
+    """Get metrics related to a specific question"""
+    # Return dummy data for demonstration
+    dummy_metrics = {
+        "metrics": {
+            "question": question,
+            "total_responses": 150,
+            "average_score": 4.2,
+            "completion_rate": "85%",
+            "time_spent": "2.5 minutes",
+            "difficulty_level": "medium",
+            "success_rate": "78%",
+            "feedback_count": 42
+        },
+        "timestamp": "2024-03-20T10:30:00Z"
+    }
+    return dummy_metrics
 
 # Add a dynamic greeting resource
 def get_greeting(name: str) -> str:
@@ -200,6 +229,7 @@ if __name__ == "__main__":
         logger.info("Starting MCP Demo server with SSE...")
         logger.info("Available endpoints:")
         logger.info("  - Tool: add(a: int, b: int)")
+        logger.info("  - Tool: get_metrics(question: str)")
         logger.info("  - Resource: /greeting/{name}")
         
         logger.info("SSE Server Details:")
