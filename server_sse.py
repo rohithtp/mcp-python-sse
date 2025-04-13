@@ -14,6 +14,7 @@ import asyncio
 import json
 from typing import List, Dict
 import re
+from datetime import datetime
 
 # Create an MCP server
 mcp = FastMCP("Demo")
@@ -170,7 +171,7 @@ def get_metrics(question: str) -> dict:
             "success_rate": "78%",
             "feedback_count": 42
         },
-        "timestamp": "2024-03-20T10:30:00Z"
+        "timestamp": datetime.now().isoformat()
     }
     return dummy_metrics
 
